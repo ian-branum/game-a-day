@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import Link from "next/link";
 
 const ROWS = 6;
 const COLS = 7;
@@ -20,7 +19,7 @@ function dropPiece(board: Board, col: number, player: Player): Board | null {
       return next;
     }
   }
-  return null; // column full
+  return null;
 }
 
 function checkWinner(board: Board): Player | null {
@@ -45,13 +44,13 @@ function checkWinner(board: Board): Player | null {
 export default function ConnectFour() {
   const [board, setBoard] = useState<Board>(emptyBoard());
   const [thinking, setThinking] = useState(false);
-  const [status, setStatus] = useState<string>("Your turn — you're 🔴");
+  const [status, setStatus] = useState<string>("Your turn — drop 🔴");
   const [gameOver, setGameOver] = useState(false);
+  const [hoverCol, setHoverCol] = useState<number | null>(null);
 
   const askAI = useCallback(async (b: Board) => {
     setThinking(true);
-    setStatus("AI is thinking...");
-    const prompt = `You are playing Connect Four as player 2 (🟡). The board is a ${ROWS}x${COLS} grid (rows 0-5 top to bottom, cols 0-6). Board state (null=empty, 1=opponent/red, 2=you/yellow): ${JSON.stringify(b)}. Reply with ONLY a single digit (0-6) for the column you want to drop your piece in. Pick the best move to win or block.`;
+    const prompt = `You are playing Connect Four as player 2. The board is ${ROWS}x${COLS} (rows 0-5 top to bottom, cols 0-6). Board: ${JSON.stringify(b)} (null=empty,1=opponent,2=you). Reply with ONLY a single digit 0-6 for your column. Pick the best move.`;
     try {
       const res = await fetch("/api/game-ai", {
         method: "POST",
@@ -61,25 +60,19 @@ export default function ConnectFour() {
       const data = await res.json();
       const match = data.response?.match(/\b([0-6])\b/);
       let col = match ? parseInt(match[1]) : -1;
-      // fallback: first non-full column
-      if (col === -1 || b[0][col] !== null) {
-        col = [0,1,2,3,4,5,6].find((c) => b[0][c] === null) ?? -1;
-      }
+      if (col === -1 || b[0][col] !== null) col = [0,1,2,3,4,5,6].find((c) => b[0][c] === null) ?? -1;
       if (col !== -1) {
         const next = dropPiece(b, col, 2);
         if (next) {
           setBoard(next);
           const w = checkWinner(next);
           if (w === 2) { setStatus("AI wins! 🤖"); setGameOver(true); }
-          else if (next[0].every((c) => c !== null)) { setStatus("It's a draw!"); setGameOver(true); }
-          else setStatus("Your turn — you're 🔴");
+          else if (next[0].every((c) => c !== null)) { setStatus("Draw!"); setGameOver(true); }
+          else setStatus("Your turn — drop 🔴");
         }
       }
-    } catch {
-      setStatus("AI unavailable — your turn again");
-    } finally {
-      setThinking(false);
-    }
+    } catch { setStatus("AI unavailable — your turn"); }
+    finally { setThinking(false); }
   }, []);
 
   const handleClick = (col: number) => {
@@ -89,60 +82,57 @@ export default function ConnectFour() {
     setBoard(next);
     const w = checkWinner(next);
     if (w === 1) { setStatus("You win! 🎉"); setGameOver(true); return; }
-    if (next[0].every((c) => c !== null)) { setStatus("It's a draw!"); setGameOver(true); return; }
+    if (next[0].every((c) => c !== null)) { setStatus("Draw!"); setGameOver(true); return; }
+    setStatus("AI is thinking...");
     askAI(next);
   };
 
-  const reset = () => {
-    setBoard(emptyBoard());
-    setGameOver(false);
-    setThinking(false);
-    setStatus("Your turn — you're 🔴");
-  };
+  const reset = () => { setBoard(emptyBoard()); setGameOver(false); setThinking(false); setStatus("Your turn — drop 🔴"); };
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white flex flex-col items-center p-8">
-      <div className="w-full max-w-lg flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Connect Four</h1>
-        <Link href="/games" className="text-sm text-gray-400 hover:text-white transition">← All Games</Link>
-      </div>
+    <div className="flex flex-col items-center justify-center min-h-full p-8">
+      <h2 className="font-orbitron text-3xl font-black mb-1" style={{ color: "#1d4ed8" }}
+        // override with a visible blue
+      ><span style={{ color: "#60a5fa" }}>CONNECT FOUR</span></h2>
+      <p className="text-sm mb-4" style={{ color: "#00f5ff88" }}>You vs. AI · You are 🔴</p>
+      <p className="text-lg font-semibold mb-4">{status}</p>
 
-      <p className="text-lg text-gray-300 mb-4">{status}</p>
-
-      {/* Column buttons */}
+      {/* Drop arrows */}
       <div className="flex gap-1 mb-1">
         {Array.from({ length: COLS }, (_, c) => (
-          <button
-            key={c}
-            onClick={() => handleClick(c)}
+          <button key={c} onClick={() => handleClick(c)}
+            onMouseEnter={() => setHoverCol(c)} onMouseLeave={() => setHoverCol(null)}
             disabled={gameOver || thinking}
-            className="w-12 h-8 text-gray-500 hover:text-red-400 hover:bg-gray-800 rounded transition disabled:opacity-30 disabled:cursor-not-allowed text-lg"
-          >
+            className="w-12 h-7 rounded transition-all text-sm disabled:opacity-30"
+            style={{ color: hoverCol === c ? "#ff2d8b" : "#ffffff44" }}>
             ▼
           </button>
         ))}
       </div>
 
       {/* Board */}
-      <div className="bg-blue-800 p-2 rounded-xl border-4 border-blue-700">
+      <div className="p-2 rounded-xl" style={{ background: "#1e3a8a", border: "2px solid #3b82f666" }}>
         {board.map((row, r) => (
           <div key={r} className="flex gap-1 mb-1">
             {row.map((cell, c) => (
-              <div key={c} className="w-12 h-12 rounded-full flex items-center justify-center bg-blue-900">
-                {cell === 1 && <div className="w-10 h-10 rounded-full bg-red-500 shadow-lg" />}
-                {cell === 2 && <div className="w-10 h-10 rounded-full bg-yellow-400 shadow-lg" />}
-                {!cell && <div className="w-10 h-10 rounded-full bg-gray-950 opacity-80" />}
+              <div key={c} onClick={() => handleClick(c)}
+                className="w-12 h-12 rounded-full flex items-center justify-center cursor-pointer"
+                style={{ background: "#0f172a" }}>
+                {cell === 1 && <div className="w-10 h-10 rounded-full" style={{ background: "#ef4444", boxShadow: "0 0 8px #ef444466" }} />}
+                {cell === 2 && <div className="w-10 h-10 rounded-full" style={{ background: "#facc15", boxShadow: "0 0 8px #facc1566" }} />}
+                {!cell && hoverCol === c && !gameOver && !thinking && (
+                  <div className="w-10 h-10 rounded-full opacity-20" style={{ background: "#ef4444" }} />
+                )}
               </div>
             ))}
           </div>
         ))}
       </div>
 
-      <button onClick={reset} className="mt-6 px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-semibold transition">
-        New Game
+      <button onClick={reset} className="mt-6 px-8 py-2 rounded-lg font-orbitron font-bold text-sm tracking-wider transition-all"
+        style={{ background: "linear-gradient(135deg, #1d4ed822, #3b82f622)", border: "1px solid #3b82f666", color: "#60a5fa" }}>
+        NEW GAME
       </button>
-
-      <p className="text-xs text-gray-600 mt-8">Added 2026-07-01</p>
-    </main>
+    </div>
   );
 }

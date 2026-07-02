@@ -1,5 +1,4 @@
-import { getTodayGame, getAllGames } from "@/lib/games";
-import Link from "next/link";
+import { getTodayGame } from "@/lib/games";
 import { redirect } from "next/navigation";
 
 export default function Home() {

@@ -4,22 +4,28 @@ export interface GameMeta {
   description: string;
   addedDate: string; // YYYY-MM-DD
   hasAI: boolean;
+  emoji: string;
+  color: string; // tailwind bg class for thumbnail
 }
 
 export const GAMES: GameMeta[] = [
   {
     slug: "snake",
-    title: "Snake 🐍",
+    title: "Snake",
     description: "Eat, grow, don't crash. Classic arcade.",
     addedDate: "2026-06-29",
     hasAI: false,
+    emoji: "🐍",
+    color: "#16a34a",
   },
   {
     slug: "minesweeper",
-    title: "Minesweeper 💣",
+    title: "Minesweeper",
     description: "Clear the minefield without triggering a bomb.",
     addedDate: "2026-06-30",
     hasAI: false,
+    emoji: "💣",
+    color: "#ca8a04",
   },
   {
     slug: "connectfour",
@@ -27,6 +33,8 @@ export const GAMES: GameMeta[] = [
     description: "Drop pieces to connect four in a row. You vs. AI.",
     addedDate: "2026-07-01",
     hasAI: true,
+    emoji: "🔴",
+    color: "#1d4ed8",
   },
   {
     slug: "tictactoe",
@@ -34,6 +42,8 @@ export const GAMES: GameMeta[] = [
     description: "The classic 3×3 grid game. You vs. AI.",
     addedDate: "2026-07-02",
     hasAI: true,
+    emoji: "⭕",
+    color: "#7c3aed",
   },
 ];
 
