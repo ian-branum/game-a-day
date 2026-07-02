@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import ThinkingOrbs from "@/components/ThinkingOrbs";
 
 type Cell = "X" | "O" | null;
 type Board = Cell[];
@@ -28,7 +29,6 @@ export default function TicTacToe() {
 
   const askAI = useCallback(async (currentBoard: Board) => {
     setIsThinking(true);
-    setStatusMsg("AI is thinking...");
     const prompt = `You are playing Tic-Tac-Toe as O. The board is a 9-element array (index 0-8, left-to-right, top-to-bottom). Current board: ${JSON.stringify(currentBoard)}. null = empty, "X" = human, "O" = you. Reply with ONLY the index number (0-8) of your chosen move. Pick the best move.`;
     try {
       const res = await fetch("/api/game-ai", {
@@ -63,6 +63,7 @@ export default function TicTacToe() {
     const result = checkWinner(newBoard);
     if (result === "X") { setStatusMsg("You win! 🎉"); return; }
     if (result === "draw") { setStatusMsg("It's a draw!"); return; }
+    setStatusMsg("");
     askAI(newBoard);
   };
 
@@ -70,14 +71,14 @@ export default function TicTacToe() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-full p-8">
-      <div className="mb-2">
-        <h2 className="font-orbitron text-3xl font-black text-center" style={{ color: "#b44fff" }}>
-          ⭕ TIC-TAC-TOE
-        </h2>
-        <p className="text-center text-sm mt-1" style={{ color: "#00f5ff88" }}>You vs. AI · You are X</p>
-      </div>
+      <h2 className="font-orbitron text-3xl font-black mb-1" style={{ color: "#b44fff" }}>TIC-TAC-TOE</h2>
+      <p className="text-sm mb-4" style={{ color: "#00f5ff88" }}>You vs. AI · You are X</p>
 
-      <p className="text-lg font-semibold my-4" style={{ color: "#e0e0ff" }}>{statusMsg}</p>
+      {isThinking ? (
+        <ThinkingOrbs label="AI calculating" />
+      ) : (
+        <p className="text-lg font-semibold mb-4" style={{ color: "#e0e0ff" }}>{statusMsg}</p>
+      )}
 
       <div className="grid grid-cols-3 gap-2 mb-6">
         {board.map((cell, idx) => (

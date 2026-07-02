@@ -4,6 +4,8 @@ import { getAllGames, GameMeta } from "@/lib/games";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import HeaderArt from "./HeaderArt";
+import Countdown from "./Countdown";
 
 function GameThumbnail({ game }: { game: GameMeta }) {
   return (
@@ -33,23 +35,14 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       {/* ── HEADER ── */}
       <header className="flex-shrink-0 relative overflow-hidden"
         style={{ background: "linear-gradient(135deg, #0a0a2e 0%, #1a0533 50%, #0a1a3e 100%)", borderBottom: "1px solid #2a2a6a" }}>
-        {/* Decorative lines */}
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent, #ff2d8b, #b44fff, #00f5ff, transparent)" }} />
           <div className="absolute bottom-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent, #00f5ff, #b44fff, #ff2d8b, transparent)" }} />
         </div>
 
         <div className="flex items-center gap-4 px-6 py-4 relative">
-          {/* Mobile sidebar toggle */}
-          <button
-            className="lg:hidden text-2xl mr-2"
-            onClick={() => setSidebarOpen((o) => !o)}
-            aria-label="Toggle sidebar"
-          >
-            ☰
-          </button>
+          <button className="lg:hidden text-2xl mr-2" onClick={() => setSidebarOpen((o) => !o)} aria-label="Toggle sidebar">☰</button>
 
-          {/* Logo / anime badge */}
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
@@ -60,8 +53,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-pink-500" />
             </div>
             <div>
-              <h1 className="font-orbitron text-xl font-black leading-tight tracking-wider text-glow-pink"
-                style={{ color: "#ff2d8b" }}>
+              <h1 className="font-orbitron text-xl font-black leading-tight tracking-wider text-glow-pink" style={{ color: "#ff2d8b" }}>
                 GAME OF THE DAY
               </h1>
               <p className="text-xs font-medium tracking-widest uppercase" style={{ color: "#00f5ff99" }}>
@@ -70,19 +62,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {/* Right side decoration */}
-          <div className="ml-auto hidden sm:flex items-center gap-2 text-xs font-orbitron" style={{ color: "#b44fff" }}>
-            <span className="animate-pulse">◆</span>
-            <span style={{ color: "#00f5ff88" }}>SEASON 01</span>
-            <span className="animate-pulse">◆</span>
-          </div>
+          {/* Anime SVG art */}
+          <HeaderArt />
         </div>
       </header>
 
       {/* ── BODY ── */}
       <div className="flex flex-1 overflow-hidden relative">
-
-        {/* Mobile sidebar overlay */}
         {sidebarOpen && (
           <div className="fixed inset-0 bg-black/60 z-20 lg:hidden" onClick={() => setSidebarOpen(false)} />
         )}
@@ -97,14 +83,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         `}
           style={{ background: "linear-gradient(180deg, #0d0d2b 0%, #080818 100%)", borderRight: "1px solid #2a2a6a" }}>
 
-          {/* Sidebar header */}
           <div className="px-4 py-3 flex-shrink-0" style={{ borderBottom: "1px solid #2a2a6a" }}>
             <p className="font-orbitron text-xs tracking-widest uppercase" style={{ color: "#b44fff" }}>
               ✦ Game Archive ✦
             </p>
           </div>
 
-          {/* Game list */}
           <nav className="flex-1 overflow-y-auto py-2">
             {games.map((game, i) => {
               const isActive = pathname === `/games/${game.slug}`;
@@ -114,7 +98,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                   key={game.slug}
                   href={`/games/${game.slug}`}
                   onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-3 transition-all group ${isActive ? "sidebar-item-active" : "hover:bg-white/5 border-l-3 border-l-transparent"}`}
+                  className={`flex items-center gap-3 px-4 py-3 transition-all group ${isActive ? "sidebar-item-active" : "hover:bg-white/5"}`}
                   style={!isActive ? { borderLeft: "3px solid transparent" } : {}}
                 >
                   <GameThumbnail game={game} />
@@ -140,19 +124,19 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          {/* Sidebar footer */}
-          <div className="px-4 py-3 flex-shrink-0 text-center" style={{ borderTop: "1px solid #2a2a6a" }}>
-            <p className="text-xs" style={{ color: "#ffffff22" }}>
-              Built by AI · Powered by Ollama
-            </p>
+          {/* Countdown teaser */}
+          <div className="flex-shrink-0" style={{ borderTop: "1px solid #2a2a6a" }}>
+            <Countdown />
+          </div>
+
+          <div className="px-4 py-2 flex-shrink-0 text-center">
+            <p className="text-xs" style={{ color: "#ffffff22" }}>Built by AI · Powered by Ollama</p>
           </div>
         </aside>
 
         {/* ── MAIN CONTENT ── */}
         <main className="flex-1 overflow-y-auto relative scanlines" style={{ background: "#080818" }}>
-          <div className="relative z-10 h-full">
-            {children}
-          </div>
+          <div className="relative z-10 h-full">{children}</div>
         </main>
       </div>
     </div>
