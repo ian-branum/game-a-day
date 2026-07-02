@@ -8,6 +8,27 @@ export interface GameMeta {
 
 export const GAMES: GameMeta[] = [
   {
+    slug: "snake",
+    title: "Snake 🐍",
+    description: "Eat, grow, don't crash. Classic arcade.",
+    addedDate: "2026-06-29",
+    hasAI: false,
+  },
+  {
+    slug: "minesweeper",
+    title: "Minesweeper 💣",
+    description: "Clear the minefield without triggering a bomb.",
+    addedDate: "2026-06-30",
+    hasAI: false,
+  },
+  {
+    slug: "connectfour",
+    title: "Connect Four",
+    description: "Drop pieces to connect four in a row. You vs. AI.",
+    addedDate: "2026-07-01",
+    hasAI: true,
+  },
+  {
     slug: "tictactoe",
     title: "Tic-Tac-Toe",
     description: "The classic 3×3 grid game. You vs. AI.",
