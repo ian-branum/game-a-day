@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { SYSTEM_PROMPTS } from "@/lib/prompts";
 
 export async function POST(req: NextRequest) {
   // Verify shared secret
@@ -9,6 +10,7 @@ export async function POST(req: NextRequest) {
 
   const { prompt, game } = await req.json();
   const ollamaUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+  const systemPrompt = game ? SYSTEM_PROMPTS[game] ?? "" : "";
 
   try {
     const response = await fetch(`${ollamaUrl}/api/generate`, {
@@ -16,6 +18,7 @@ export async function POST(req: NextRequest) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "llama3:8b",
+        system: systemPrompt,
         prompt,
         stream: false,
         options: { temperature: 0.2 },

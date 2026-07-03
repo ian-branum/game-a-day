@@ -45,6 +45,15 @@ export const GAMES: GameMeta[] = [
     emoji: "⭕",
     color: "#7c3aed",
   },
+  {
+    slug: "2048",
+    title: "2048",
+    description: "Slide tiles and merge your way to 2048. Play solo or watch AI.",
+    addedDate: "2026-07-03",
+    hasAI: true,
+    emoji: "🟨",
+    color: "#ca8a04",
+  },
 ];
 
 export function getTodayGame(): GameMeta {
