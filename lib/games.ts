@@ -54,6 +54,15 @@ export const GAMES: GameMeta[] = [
     emoji: "🟨",
     color: "#ca8a04",
   },
+  {
+    slug: "othello",
+    title: "Othello",
+    description: "Flip your opponent's discs to dominate the board. You vs. AI.",
+    addedDate: "2026-07-03",
+    hasAI: true,
+    emoji: "⚫",
+    color: "#166534",
+  },
 ];
 
 export function getTodayGame(): GameMeta {
