@@ -72,6 +72,15 @@ export const GAMES: GameMeta[] = [
     emoji: "🎆",
     color: "#1e1b4b",
   },
+  {
+    slug: "squad-leader",
+    title: "Squad Leader",
+    description: "Turn-based tactical combat. Lead the 101st Airborne to clear a French village in 1944.",
+    addedDate: "2026-07-05",
+    hasAI: false,
+    emoji: "🪖",
+    color: "#2d5a1b",
+  },
 ];
 
 export function getTodayGame(): GameMeta {
