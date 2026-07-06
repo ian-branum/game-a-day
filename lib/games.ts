@@ -63,6 +63,15 @@ export const GAMES: GameMeta[] = [
     emoji: "⚫",
     color: "#166534",
   },
+  {
+    slug: "fireworks",
+    title: "Fireworks Catch",
+    description: "Catch falling fireworks in your bucket. Happy 4th of July! 🎆",
+    addedDate: "2026-07-04",
+    hasAI: false,
+    emoji: "🎆",
+    color: "#1e1b4b",
+  },
 ];
 
 export function getTodayGame(): GameMeta {
