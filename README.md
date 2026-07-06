@@ -1,36 +1,119 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Game-a-Day 🎮
 
-## Getting Started
+A daily browser game project. One new game ships every day (or close to it).
 
-First, run the development server:
+**Live:** https://game-a-day-one.vercel.app  
+**Stack:** Next.js (App Router), TypeScript, Tailwind, Ollama (Llama 3 8b on VPS) for AI games  
+**Repo:** ian-branum/game-a-day  
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+---
+
+## How to Add a New Game
+
+This is a recurring workflow. Follow these steps every time.
+
+### 1. Create the game directory
+
+```
+app/games/<slug>/
+  page.tsx      ← the game (you write this)
+  TASK.md       ← the spec brief (Chef writes this, goes with the game)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Write `page.tsx`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Must begin with `"use client";`
+- Self-contained React component — no external game libraries
+- Use `requestAnimationFrame` via `useRef` + `useEffect` for game loops
+- Keep hot-path state in **refs**, use `useState` only for React-rendered values (score, lives, status)
+- Clean up all RAF handles and timeouts in `useEffect` return functions
+- For AI games: call `/api/game-ai` (see `connectfour/page.tsx` for pattern)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**Style rules:**
+- Dark background: `#05071a` or similar deep dark
+- Orbitron font for title/score (globally loaded — just use `font-orbitron` class)
+- Glowing effects via `boxShadow` on colored elements
+- Mobile controls: on-screen buttons, touch targets ≥ 44px
+- Pattern reference: `app/games/snake/page.tsx` (no AI), `app/games/connectfour/page.tsx` (with AI)
 
-## Learn More
+### 3. Register in `lib/games.ts`
 
-To learn more about Next.js, take a look at the following resources:
+Add an entry to the `GAMES` array:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```ts
+{
+  slug: "mygame",          // matches app/games/<slug>/
+  title: "My Game",
+  description: "One sentence. What it is, how it plays.",
+  addedDate: "2026-07-07", // YYYY-MM-DD
+  hasAI: false,            // true if it calls /api/game-ai
+  emoji: "🎮",
+  color: "#1e1b4b",        // hex, used for thumbnail background
+}
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`getTodayGame()` returns the last entry — newest game auto-becomes today's game.
 
-## Deploy on Vercel
+### 4. Commit and push
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+git add app/games/<slug>/ lib/games.ts
+git commit -m "feat: add <Game Name> 🎮"
+git push
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Vercel auto-deploys on push to `main`.
+
+---
+
+## AI Games
+
+AI games call the `/api/game-ai` route, which proxies to Ollama (Llama 3 8b) on the VPS.
+
+- Include header: `x-game-ai-secret: <NEXT_PUBLIC_GAME_AI_SECRET>`
+- POST body: `{ prompt: string, game: string }`
+- Response: `{ response: string }` — parse out the move yourself (AI output is messy)
+- Always have a fallback if AI is unavailable (catch block → default move)
+- Set `hasAI: true` in games registry
+
+---
+
+## Repo Structure
+
+```
+app/
+  page.tsx              ← landing page (redirects to today's game)
+  games/
+    layout.tsx          ← shared game shell (nav, back button, etc.)
+    page.tsx            ← game listing page
+    <slug>/
+      page.tsx          ← the game
+      TASK.md           ← spec brief (Chef-authored, for reference)
+components/
+  ThinkingOrbs.tsx      ← loading spinner used in AI games
+lib/
+  games.ts              ← game registry (source of truth for slugs, titles, dates)
+```
+
+---
+
+## Agent Workflow
+
+Games are built by the AI dev team:
+
+1. **Chef** reads the repo, designs the game, writes `TASK.md` spec
+2. **Chef** spawns a subagent (full-stack-dev or frontend-dev) with the spec
+3. **Subagent** writes `page.tsx` only — does NOT touch `lib/games.ts`
+4. **Chef** reviews, updates `lib/games.ts`, commits and pushes
+
+The repo is cloned at `/home/agentuser/game-a-day` on the VPS. At session start, `git pull` to get latest before making changes.
+
+---
+
+## Credentials
+
+Stored in: `/home/agentuser/.openclaw/workspace/agents/chef/.env.game-a-day`
+
+- `GAME_A_DAY_GITHUB_TOKEN` — fine-grained PAT (Contents + PRs R/W)
+- `GAME_AI_SECRET` — shared secret for `/api/game-ai` route
+- Also needs to be set in Vercel env vars as `NEXT_PUBLIC_GAME_AI_SECRET`
