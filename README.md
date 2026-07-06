@@ -102,9 +102,10 @@ lib/
 Games are built by the AI dev team:
 
 1. **Chef** reads the repo, designs the game, writes `TASK.md` spec
-2. **Chef** spawns a subagent (full-stack-dev or frontend-dev) with the spec
-3. **Subagent** writes `page.tsx` only — does NOT touch `lib/games.ts`
-4. **Chef** reviews, updates `lib/games.ts`, commits and pushes
+2. **Chef** sends the task to a Qwen coder agent via `sessions_send(sessionKey: "agent:full-stack-dev:main", ...)`
+   - ⚠️ Do NOT use `sessions_spawn` — that always uses Claude (expensive). Use `sessions_send` to route to local Qwen.
+3. **Qwen coder** writes `page.tsx` (and any engine files) — does NOT touch `lib/games.ts`
+4. **Chef** verifies output, updates `lib/games.ts`, commits and pushes
 
 The repo is cloned at `/home/agentuser/game-a-day` on the VPS. At session start, `git pull` to get latest before making changes.
 
