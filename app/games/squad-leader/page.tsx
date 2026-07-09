@@ -13,6 +13,8 @@ import {
   runAxisAI,
 } from "@/lib/squad-leader/engine";
 import { normandyScenario } from "@/lib/squad-leader/scenarios/normandy";
+import { playSquadFire, playLeaderFire, playMGFire } from "@/lib/squad-leader/sounds";
+import { animateTracers } from "@/lib/squad-leader/tracers";
 
 // ─── Hex geometry ─────────────────────────────────────────────────────────────
 // Pointy-top hexes, odd-row offset layout
@@ -241,6 +243,8 @@ export default function SquadLeader() {
   const tooltipTimer                          = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [hoveredObjLabel, setHoveredObjLabel] = useState<string | null>(null); // from map hex
   const [hoveredObjBar, setHoveredObjBar]     = useState<string | null>(null); // from objectives bar
+  const audioCtx                              = useRef<AudioContext | null>(null);
+  const tracerCanvas                          = useRef<HTMLCanvasElement | null>(null);
 
   const startGame = useCallback(() => {
     setGameState(initGame(normandyScenario));
@@ -328,10 +332,34 @@ export default function SquadLeader() {
     }
   }, [gameState, reachableTiles]);
 
+  const triggerFX = useCallback((attacker: Unit, target: Unit) => {
+    // ── Audio ──────────────────────────────────────────────────────────────
+    try {
+      if (!audioCtx.current) {
+        audioCtx.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+      }
+      const ac = audioCtx.current;
+      if (ac.state === "suspended") ac.resume();
+      if (attacker.type === "mg")     playMGFire(ac);
+      else if (attacker.type === "leader") playLeaderFire(ac);
+      else                             playSquadFire(ac);
+    } catch { /* audio blocked */ }
+
+    // ── Tracers ────────────────────────────────────────────────────────────
+    if (tracerCanvas.current) {
+      const [ox, oy] = hexCenter(attacker.pos.row, attacker.pos.col);
+      const [tx, ty] = hexCenter(target.pos.row,   target.pos.col);
+      animateTracers(tracerCanvas.current, ox, oy, tx, ty, attacker.type);
+    }
+  }, []);
+
   const handleFireAt = useCallback((targetId: string) => {
     if (!gameState || !gameState.activeUnit) return;
+    const attacker = gameState.units.find(u => u.id === gameState.activeUnit);
+    const target   = gameState.units.find(u => u.id === targetId);
+    if (attacker && target) triggerFX(attacker, target);
     setGameState(fireUnit(gameState, gameState.activeUnit, targetId));
-  }, [gameState]);
+  }, [gameState, triggerFX]);
 
   const handleRally = useCallback((unitId: string) => {
     if (!gameState) return;
@@ -352,8 +380,27 @@ export default function SquadLeader() {
       await new Promise(r => setTimeout(r, 400));
 
       const beforeLog = nextState.log.slice();
+
+      // Snapshot pre-AI unit positions for FX
+      const preUnits = JSON.parse(JSON.stringify(nextState.units)) as typeof nextState.units;
+
       const afterState = runAxisAI(nextState);
       const newEntries = afterState.log.filter(l => !beforeLog.includes(l));
+
+      // Fire FX for each axis unit that fired (log entry "X fires at Y")
+      for (const entry of newEntries) {
+        const match = entry.match(/^(.+?) fires at (.+?) →/);
+        if (!match) continue;
+        const [, attackerName] = match;
+        const attacker = afterState.units.find(u => u.name === attackerName && u.faction === "axis");
+        const target   = afterState.units.find(u => entry.includes(u.name) && u.faction === "allied");
+        if (attacker && target) {
+          const pre = preUnits.find(u => u.id === attacker.id);
+          const aPos = pre?.pos ?? attacker.pos;
+          triggerFX({ ...attacker, pos: aPos }, target);
+        }
+        await new Promise(r => setTimeout(r, 60));
+      }
 
       for (let i = newEntries.length - 1; i >= 0; i--) {
         await new Promise(r => setTimeout(r, 200));
@@ -482,6 +529,21 @@ export default function SquadLeader() {
 
         {/* ── Hex map ─────────────────────────────────────────────────── */}
         <div className="flex-1 overflow-auto p-2" style={{ position: "relative" }}>
+          {/* Tracer canvas overlay — sits exactly on top of SVG, pointer-events:none */}
+          <canvas
+            ref={tracerCanvas}
+            width={SVG_W}
+            height={SVG_H}
+            style={{
+              position: "absolute",
+              top: "8px",   // matches p-2
+              left: "8px",
+              width: SVG_W,
+              height: SVG_H,
+              pointerEvents: "none",
+              zIndex: 10,
+            }}
+          />
           <svg
             width={SVG_W}
             height={SVG_H}
