@@ -9,28 +9,43 @@ export async function POST(req: NextRequest) {
   }
 
   const { prompt, game } = await req.json();
-  const ollamaUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
   const systemPrompt = game ? SYSTEM_PROMPTS[game] ?? "" : "";
 
+  const apiKey = process.env.DEEPSEEK_API_KEY;
+  if (!apiKey) {
+    console.error("DEEPSEEK_API_KEY not set");
+    return NextResponse.json({ error: "AI unavailable" }, { status: 503 });
+  }
+
   try {
-    const response = await fetch(`${ollamaUrl}/api/generate`, {
+    const messages: { role: string; content: string }[] = [];
+    if (systemPrompt) {
+      messages.push({ role: "system", content: systemPrompt });
+    }
+    messages.push({ role: "user", content: prompt });
+
+    const response = await fetch("https://api.deepseek.com/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
       body: JSON.stringify({
-        model: "llama3:8b",
-        system: systemPrompt,
-        prompt,
+        model: "deepseek-chat",
+        messages,
+        temperature: 0.2,
         stream: false,
-        options: { temperature: 0.2 },
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`Ollama error: ${response.status}`);
+      const errText = await response.text();
+      throw new Error(`DeepSeek error: ${response.status} ${errText}`);
     }
 
     const data = await response.json();
-    return NextResponse.json({ response: data.response });
+    const text = data.choices?.[0]?.message?.content ?? "";
+    return NextResponse.json({ response: text });
   } catch (err) {
     console.error("game-ai error:", err);
     return NextResponse.json({ error: "AI unavailable" }, { status: 503 });
