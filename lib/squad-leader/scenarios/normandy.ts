@@ -42,8 +42,8 @@ const map: Tile[][] = [
 
 export const normandyScenario: ScenarioDefinition = {
   id: "normandy",
-  title: "Clear the Village",
-  subtitle: "Normandy, France — June 6, 1944",
+  title: "Normandy, France (Squad Leader)",
+  subtitle: "Clear the Village — June 6, 1944",
   briefing: `Intelligence reports a small German garrison holding the village of Sainte-Croix-sur-Mer. Three key positions must be cleared before dawn: the Farmhouse crossroads, the Church on the hill, and the Mayor's House at the south road.
 
 Your men of the 101st Airborne have been scattered by a rough drop, but those who gathered are ready for action. Move through the wheatfields and woods for cover, then push into the village hard and fast. The Germans are dug in and well-armed — their MG42 team will chew through anyone caught in the open.

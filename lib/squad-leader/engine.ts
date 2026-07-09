@@ -8,7 +8,20 @@ import type {
   ScenarioDefinition,
   ObjectiveState,
 } from "./types";
-import { hasLOS } from "./los";
+import { hasLOS, hexLine } from "./los";
+
+// ─── Hex distance (offset coords, odd-r) ────────────────────────────────────
+function offsetToCube(row: number, col: number): [number, number, number] {
+  const x = col - (row - (row & 1)) / 2;
+  const z = row;
+  return [x, -x - z, z];
+}
+function hexDist(a: Pos, b: Pos): number {
+  const [ax, ay, az] = offsetToCube(a.row, a.col);
+  const [bx, by, bz] = offsetToCube(b.row, b.col);
+  return Math.max(Math.abs(ax - bx), Math.abs(ay - by), Math.abs(az - bz));
+}
+
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -40,10 +53,7 @@ function terrainMoveCost(terrain: string): number {
   }
 }
 
-function chebyshev(a: Pos, b: Pos): number {
-  return Math.max(Math.abs(a.row - b.row), Math.abs(a.col - b.col));
-}
-
+// kept for AI fallback convenience
 function manhattan(a: Pos, b: Pos): number {
   return Math.abs(a.row - b.row) + Math.abs(a.col - b.col);
 }
@@ -78,7 +88,7 @@ function hasLeaderBonus(state: GameState, unit: Unit, bonus: number): number {
       u.status !== "eliminated" &&
       u.id !== unit.id
   );
-  return leaders.some((l) => chebyshev(l.pos, unit.pos) <= 2) ? bonus : 0;
+  return leaders.some((l) => hexDist(l.pos, unit.pos) <= 2) ? bonus : 0;
 }
 
 // ─── Win Check ───────────────────────────────────────────────────────────────
@@ -200,29 +210,29 @@ export function getReachableTiles(state: GameState, unitId: string): Pos[] {
       reachable.push(pos);
     }
 
-    // Explore neighbors (4-directional + diagonal = 8)
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        if (dr === 0 && dc === 0) continue;
-        const nr = pos.row + dr;
-        const nc = pos.col + dc;
-        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
-        const key = `${nr},${nc}`;
-        if (enemyPositions.has(key)) continue;
+    // Hex neighbors — 6 directions, offset depends on whether row is odd or even
+    const isOdd = pos.row & 1;
+    const hexNeighbors = isOdd
+      ? [[-1,0],[-1,1],[0,-1],[0,1],[1,0],[1,1]]
+      : [[-1,-1],[-1,0],[0,-1],[0,1],[1,-1],[1,0]];
 
-        const tile = state.map[nr][nc];
-        let moveCost = terrainMoveCost(tile.terrain);
-        // Diagonal movement costs slightly more (Chebyshev-ish)
-        if (dr !== 0 && dc !== 0) moveCost *= 1.0; // same cost for diagonal
-        if (suppressed) moveCost += 1;
+    for (const [dr, dc] of hexNeighbors) {
+      const nr = pos.row + dr;
+      const nc = pos.col + dc;
+      if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+      const key = `${nr},${nc}`;
+      if (enemyPositions.has(key)) continue;
 
-        const newCost = cost + moveCost;
-        if (newCost <= remainingMP) {
-          const existing = visited.get(key);
-          if (existing === undefined || newCost < existing) {
-            visited.set(key, newCost);
-            queue.push({ pos: { row: nr, col: nc }, cost: newCost });
-          }
+      const tile = state.map[nr][nc];
+      let moveCost = terrainMoveCost(tile.terrain);
+      if (suppressed) moveCost += 1;
+
+      const newCost = cost + moveCost;
+      if (newCost <= remainingMP) {
+        const existing = visited.get(key);
+        if (existing === undefined || newCost < existing) {
+          visited.set(key, newCost);
+          queue.push({ pos: { row: nr, col: nc }, cost: newCost });
         }
       }
     }
@@ -285,17 +295,12 @@ export function moveUnit(state: GameState, unitId: string, to: Pos): GameState {
     return { ...state, log: [`${unit.name} cannot reach that tile`, ...state.log] };
   }
 
-  // Compute MP cost for this specific move (simple: sum along direct path)
-  // For accuracy, do a direct cost calculation
-  const dx = to.col - unit.pos.col;
-  const dy = to.row - unit.pos.row;
-  const steps = Math.max(Math.abs(dx), Math.abs(dy));
+  // Compute MP cost via hex line
+  const pathTiles = [...hexLine(unit.pos, to), to];
   let mpCost = 0;
-  for (let i = 1; i <= steps; i++) {
-    const r = unit.pos.row + Math.round((dy / steps) * i);
-    const c = unit.pos.col + Math.round((dx / steps) * i);
-    if (r >= 0 && r < rows && c >= 0 && c < cols) {
-      let cost = terrainMoveCost(state.map[r][c].terrain);
+  for (const step of pathTiles) {
+    if (step.row >= 0 && step.row < rows && step.col >= 0 && step.col < cols) {
+      let cost = terrainMoveCost(state.map[step.row][step.col].terrain);
       if (unit.status === "suppressed") cost += 1;
       mpCost += cost;
     }
@@ -324,7 +329,7 @@ export function getAttackableTargets(state: GameState, attackerId: string): Unit
   return state.units.filter((u) => {
     if (u.faction === attacker.faction) return false;
     if (u.status === "eliminated") return false;
-    const dist = chebyshev(attacker.pos, u.pos);
+    const dist = hexDist(attacker.pos, u.pos);
     if (dist > attacker.range) return false;
     return hasLOS(state.map, attacker.pos, u.pos);
   });
@@ -355,7 +360,7 @@ export function fireUnit(state: GameState, attackerId: string, targetId: string)
     return { ...state, log: [`${target.name} is already eliminated`, ...state.log] };
   }
 
-  const dist = chebyshev(attacker.pos, target.pos);
+  const dist = hexDist(attacker.pos, target.pos);
   if (dist > attacker.range) {
     return { ...state, log: [`${target.name} is out of range`, ...state.log] };
   }
@@ -492,22 +497,35 @@ export function runAxisAI(state: GameState): GameState {
 
   for (const unit of axisUnits()) {
     if (unit.status === "broken") {
-      // Flee: move away from nearest allied unit
+      // Flee: pick the hex neighbor that maximizes distance from nearest allied
       const allied = s.units.filter((u) => u.faction === "allied" && u.status !== "eliminated");
       if (allied.length === 0) continue;
 
       const nearest = allied.reduce((a, b) =>
-        chebyshev(unit.pos, a.pos) < chebyshev(unit.pos, b.pos) ? a : b
+        hexDist(unit.pos, a.pos) < hexDist(unit.pos, b.pos) ? a : b
       );
 
-      // Move in opposite direction from nearest allied
-      const dr = unit.pos.row - nearest.pos.row;
-      const dc = unit.pos.col - nearest.pos.col;
-      const len = Math.sqrt(dr * dr + dc * dc) || 1;
-      const nr = Math.max(0, Math.min(s.map.length - 1, unit.pos.row + Math.round(dr / len)));
-      const nc = Math.max(0, Math.min((s.map[0]?.length ?? 0) - 1, unit.pos.col + Math.round(dc / len)));
+      const isOdd2 = unit.pos.row & 1;
+      const hexN2: [number,number][] = isOdd2
+        ? [[-1,0],[-1,1],[0,-1],[0,1],[1,0],[1,1]]
+        : [[-1,-1],[-1,0],[0,-1],[0,1],[1,-1],[1,0]];
 
-      s = moveUnit(s, unit.id, { row: nr, col: nc });
+      const occ2 = new Set(
+        s.units.filter(u => u.status !== "eliminated" && u.id !== unit.id).map(u => `${u.pos.row},${u.pos.col}`)
+      );
+
+      let fleeTarget: Pos | null = null;
+      let fleeBest = hexDist(unit.pos, nearest.pos);
+      for (const [dr2, dc2] of hexN2) {
+        const nr2 = unit.pos.row + dr2;
+        const nc2 = unit.pos.col + dc2;
+        if (nr2 < 0 || nr2 >= s.map.length || nc2 < 0 || nc2 >= (s.map[0]?.length ?? 0)) continue;
+        if (occ2.has(`${nr2},${nc2}`)) continue;
+        const d = hexDist({ row: nr2, col: nc2 }, nearest.pos);
+        if (d > fleeBest) { fleeBest = d; fleeTarget = { row: nr2, col: nc2 }; }
+      }
+
+      if (fleeTarget) s = moveUnit(s, unit.id, fleeTarget);
     } else {
       // Move toward nearest uncontrolled (not held by axis) objective, or nearest allied
       const uncontrolled = s.objectives.filter((o) => o.heldBy !== "axis");
@@ -515,31 +533,44 @@ export function runAxisAI(state: GameState): GameState {
 
       if (uncontrolled.length > 0) {
         const nearestObj = uncontrolled.reduce((a, b) =>
-          chebyshev(unit.pos, a.pos) < chebyshev(unit.pos, b.pos) ? a : b
+          hexDist(unit.pos, a.pos) < hexDist(unit.pos, b.pos) ? a : b
         );
         target = nearestObj.pos;
       } else {
         const allied = s.units.filter((u) => u.faction === "allied" && u.status !== "eliminated");
         if (allied.length === 0) continue;
         target = allied.reduce((a, b) =>
-          chebyshev(unit.pos, a.pos) < chebyshev(unit.pos, b.pos) ? a : b
+          hexDist(unit.pos, a.pos) < hexDist(unit.pos, b.pos) ? a : b
         ).pos;
       }
 
-      // Move one step toward target
-      const dr = target.row - unit.pos.row;
-      const dc = target.col - unit.pos.col;
-      const len = Math.sqrt(dr * dr + dc * dc) || 1;
-      const nr = Math.max(0, Math.min(s.map.length - 1, unit.pos.row + Math.sign(dr)));
-      const nc = Math.max(0, Math.min((s.map[0]?.length ?? 0) - 1, unit.pos.col + Math.sign(dc)));
+      // Move one hex step toward target using valid hex neighbors
+      const isOdd = unit.pos.row & 1;
+      const hexNeighbors: [number,number][] = isOdd
+        ? [[-1,0],[-1,1],[0,-1],[0,1],[1,0],[1,1]]
+        : [[-1,-1],[-1,0],[0,-1],[0,1],[1,-1],[1,0]];
 
-      // Check for friendly/enemy blocking
-      const blocked = s.units.some(
-        (u) => u.status !== "eliminated" && u.pos.row === nr && u.pos.col === nc && u.id !== unit.id && u.faction === "allied"
+      const occupied = new Set(
+        s.units.filter(u => u.status !== "eliminated" && u.id !== unit.id).map(u => `${u.pos.row},${u.pos.col}`)
       );
 
-      if (!blocked && !(nr === unit.pos.row && nc === unit.pos.col)) {
-        s = moveUnit(s, unit.id, { row: nr, col: nc });
+      let bestNeighbor: Pos | null = null;
+      let bestDist = hexDist(unit.pos, target);
+
+      for (const [dr, dc] of hexNeighbors) {
+        const nr = unit.pos.row + dr;
+        const nc = unit.pos.col + dc;
+        if (nr < 0 || nr >= s.map.length || nc < 0 || nc >= (s.map[0]?.length ?? 0)) continue;
+        if (occupied.has(`${nr},${nc}`)) continue;
+        const d = hexDist({ row: nr, col: nc }, target);
+        if (d < bestDist) {
+          bestDist = d;
+          bestNeighbor = { row: nr, col: nc };
+        }
+      }
+
+      if (bestNeighbor) {
+        s = moveUnit(s, unit.id, bestNeighbor);
       }
     }
   }

@@ -1,79 +1,79 @@
 import type { GameMap, Pos } from "./types";
 
+// ─── Hex coordinate conversions (odd-r offset, pointy-top) ──────────────────
+// Odd rows are shifted RIGHT by half a hex width.
+
+function offsetToCube(row: number, col: number): [number, number, number] {
+  const x = col - (row - (row & 1)) / 2;
+  const z = row;
+  const y = -x - z;
+  return [x, y, z];
+}
+
+function cubeToOffset(x: number, z: number): Pos {
+  const col = x + (z - (z & 1)) / 2;
+  return { row: z, col };
+}
+
+function cubeRound(fx: number, fy: number, fz: number): [number, number, number] {
+  let rx = Math.round(fx);
+  let ry = Math.round(fy);
+  let rz = Math.round(fz);
+  const dx = Math.abs(rx - fx);
+  const dy = Math.abs(ry - fy);
+  const dz = Math.abs(rz - fz);
+  if (dx > dy && dx > dz) rx = -ry - rz;
+  else if (dy > dz) ry = -rx - rz;
+  else rz = -rx - ry;
+  return [rx, ry, rz];
+}
+
 /**
- * Bresenham's line algorithm — returns all intermediate tiles between from and to
- * (not including source and destination)
+ * Returns all intermediate hexes between from and to (excluding endpoints).
+ * Uses cube-coordinate lerp + round — the standard hex line algorithm.
  */
-export function bresenham(from: Pos, to: Pos): Pos[] {
+export function hexLine(from: Pos, to: Pos): Pos[] {
+  const [x1, y1, z1] = offsetToCube(from.row, from.col);
+  const [x2, y2, z2] = offsetToCube(to.row, to.col);
+  const N = Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2), Math.abs(z1 - z2));
+  if (N === 0) return [];
   const points: Pos[] = [];
-  let r0 = from.row;
-  let c0 = from.col;
-  const r1 = to.row;
-  const c1 = to.col;
-
-  const dr = Math.abs(r1 - r0);
-  const dc = Math.abs(c1 - c0);
-  const sr = r0 < r1 ? 1 : -1;
-  const sc = c0 < c1 ? 1 : -1;
-  let err = dr - dc;
-
-  while (true) {
-    // If we've reached the destination, stop (don't include dest)
-    if (r0 === r1 && c0 === c1) break;
-
-    const e2 = 2 * err;
-    if (e2 > -dc) { err -= dc; r0 += sr; }
-    if (e2 < dr)  { err += dr; c0 += sc; }
-
-    // If we've reached the destination after stepping, don't add it
-    if (r0 === r1 && c0 === c1) break;
-
-    points.push({ row: r0, col: c0 });
+  for (let i = 1; i < N; i++) {
+    const t = i / N;
+    const [rx, , rz] = cubeRound(
+      x1 + (x2 - x1) * t,
+      y1 + (y2 - y1) * t,
+      z1 + (z2 - z1) * t,
+    );
+    points.push(cubeToOffset(rx, rz));
   }
-
   return points;
 }
 
 /**
- * Returns true if unit at `from` can see tile at `to` given the map.
- * LOS rules:
- * - Walk the Bresenham line from `from` to `to`
- * - building → always blocks
- * - woods → blocks if path has traversed more than 2 wood tiles
- * - wheatfield → blocks if path has traversed more than 3 wheatfield tiles
- * - wall → does not block LOS
- * - Source and destination tiles do not block LOS
+ * LOS check using hex line drawing.
+ * Same terrain rules as before, applied to intermediate hexes only.
  */
 export function hasLOS(map: GameMap, from: Pos, to: Pos): boolean {
+  if (from.row === to.row && from.col === to.col) return true;
   const rows = map.length;
   const cols = map[0]?.length ?? 0;
-
-  // Same tile always has LOS
-  if (from.row === to.row && from.col === to.col) return true;
-
-  const intermediate = bresenham(from, to);
+  const intermediate = hexLine(from, to);
 
   let woodCount = 0;
   let wheatCount = 0;
 
   for (const pos of intermediate) {
-    // Out of bounds check
-    if (pos.row < 0 || pos.row >= rows || pos.col < 0 || pos.col >= cols) {
-      return false;
-    }
+    if (pos.row < 0 || pos.row >= rows || pos.col < 0 || pos.col >= cols) return false;
+    const terrain = map[pos.row][pos.col].terrain;
 
-    const tile = map[pos.row][pos.col];
-    const terrain = tile.terrain;
-
-    if (terrain === "building") {
-      return false;
-    }
+    if (terrain === "building") return false;
 
     if (terrain === "woods") {
       woodCount++;
       if (woodCount > 2) return false;
     } else {
-      woodCount = 0; // reset consecutive count
+      woodCount = 0;
     }
 
     if (terrain === "wheatfield") {
